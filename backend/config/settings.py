@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     "steam.apps.SteamConfig",
+    "library.apps.LibraryConfig",
     "rest_framework",
     "django_filters",
     "corsheaders",
