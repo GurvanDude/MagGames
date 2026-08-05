@@ -1,121 +1,50 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
 
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+
+const errorMessages: Record<string, string> = {
+  connexion: 'La connexion Steam a echoue. Relance la connexion pour reessayer.',
+  'openid-reseau': 'Le backend n arrive pas a verifier la connexion aupres de Steam.',
+  'openid-invalide': 'Steam n a pas valide cette tentative. Repars de ce bouton et evite de recharger la page Steam.',
+  'steamid-invalide': 'Steam a repondu, mais le SteamID renvoye n est pas reconnu.',
+  'cle-steam': 'La cle API Steam manque dans le fichier .env du backend.',
+  'api-steam': 'Steam a refuse ou mal repondu pendant la recuperation du profil.',
+  'profil-steam': 'Steam a valide la connexion, mais aucun profil joueur n a ete renvoye.',
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const params = new URLSearchParams(window.location.search)
+  const isConnected = params.get('connecte') === '1'
+  const errorCode = params.get('erreur')
+  const errorMessage = errorCode ? errorMessages[errorCode] : null
+
+  function loginWithSteam() {
+    window.location.href = `${API_URL}/api/auth/steam/login/`
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+    <main className="home-page">
+      <section className="home-panel" aria-labelledby="home-title">
+        <p className="eyebrow">MagGames</p>
+        <h1 id="home-title">Trouve ton prochain jeu Steam</h1>
+        <p className="intro">
+          Connecte ton compte Steam pour recuperer ta bibliotheque et preparer
+          des recommandations basees sur tes vrais jeux.
+        </p>
+
+        <button className="steam-button" type="button" onClick={loginWithSteam}>
+          Se connecter avec Steam
         </button>
+
+        {isConnected && (
+          <p className="status success">
+            Connexion Steam reussie. La bibliotheque arrive a la prochaine etape.
+          </p>
+        )}
+
+        {errorMessage && <p className="status error">{errorMessage}</p>}
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    </main>
   )
 }
 

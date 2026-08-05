@@ -30,13 +30,20 @@ def getLibrary(request):
     # On demande a Steam la liste des jeux du joueur
     url = 'https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/'
 
-    data = requests.get(url, params={
-        'key': settings.STEAM_API_KEY,
-        'steamid': steamid,
-        'include_appinfo': 1,
-        'include_played_free_games': 1,
-        'format': 'json',
-    }).json()
+    try:
+        response = requests.get(url, params={
+            'key': settings.STEAM_API_KEY,
+            'steamid': steamid,
+            'include_appinfo': 1,
+            'include_played_free_games': 1,
+            'format': 'json',
+        }, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return Response({
+            "detail": "Impossible de recuperer la bibliotheque depuis Steam."
+        }, status=502)
 
     # Steam ne renvoie rien si le profil est prive
     if 'games' not in data['response']:
