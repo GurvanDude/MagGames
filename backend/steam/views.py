@@ -4,6 +4,8 @@ from urllib.parse import urlencode
 import requests
 from django.conf import settings
 from django.shortcuts import redirect
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
 from .models import SteamProfile
 
@@ -84,3 +86,22 @@ def steamCallback(request):
     request.session['steamid'] = steamid
 
     return redirect(settings.FRONTEND_URL + '/?connecte=1')
+
+
+@api_view(['GET'])
+def currentProfile(request):
+    steamid = request.session.get('steamid')
+
+    if steamid is None:
+        return Response({"detail": "Connecte-toi avec Steam"}, status=401)
+
+    try:
+        profile = SteamProfile.objects.get(steamid=steamid)
+    except SteamProfile.DoesNotExist:
+        return Response({"detail": "Profil Steam introuvable"}, status=404)
+
+    return Response({
+        "steamid": profile.steamid,
+        "personaName": profile.personaName,
+        "avatar": profile.avatar,
+    })

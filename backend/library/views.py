@@ -80,4 +80,11 @@ def getLibrary(request):
 
     serializer = OwnedGameSerializer(queryset, many=True)
 
-    return Response({ "games" : serializer.data })
+    return Response({
+        "games" : serializer.data,
+        "count": paginator.page.paginator.count,
+        "page": paginator.page.number,
+        "total_pages": paginator.page.paginator.num_pages,
+        "next": paginator.get_next_link(),
+        "previous": paginator.get_previous_link(),
+    })
