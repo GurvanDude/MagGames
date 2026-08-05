@@ -22,4 +22,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # connexion Steam (OpenID) + profil courant
     path("", include("steam.urls")),
+    # bibliotheque de jeux du joueur connecte
+    path("", include("library.urls")),
 ]
