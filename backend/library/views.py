@@ -94,7 +94,6 @@ def synchroniserBibliotheque(profile):
         appid for appid in appids if not connues.get(appid)
     ])
 
-    # On enregistre les jeux en base
     for jeu in data['response']['games']:
         appid = jeu['appid']
         image = connues.get(appid) or images_manquantes.get(appid) or IMAGE_URL.format(appid)

@@ -24,4 +24,6 @@ urlpatterns = [
     path("", include("steam.urls")),
     # bibliotheque de jeux du joueur connecte
     path("", include("library.urls")),
+    # recommandations de jeux
+    path("", include("recommendation.urls")),
 ]
