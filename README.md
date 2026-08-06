@@ -63,10 +63,49 @@ npm run dev
 |---|---|---|
 | GET | `/api/auth/steam/login/` | Redirige vers la page de connexion Steam |
 | GET | `/api/auth/steam/callback/` | Retour de Steam, crée le profil et ouvre la session |
+| GET | `/api/library/` | Bibliothèque du joueur connecté (paginée, filtrable) |
+| GET | `/api/recommendations/` | Jeux recommandés pour le joueur connecté |
+
+Toutes les routes sauf le login répondent **401** sans session.
+
+## Connexion
 
 La connexion utilise **Steam OpenID** : on ne demande jamais le mot de passe de
 l'utilisateur, c'est Steam qui l'authentifie et nous renvoie son SteamID.
 Le SteamID est ensuite gardé dans la session Django.
+
+## Bibliothèque
+
+`GET /api/library/?keyword=&min_playtime=&max_playtime=&page=`
+
+Interroge Steam, enregistre les jeux dans les tables `Game` et `OwnedGame`,
+puis les relit depuis la base. Répond **403** si le joueur cache ses jeux.
+
+La récupération est isolée dans `synchroniserBibliotheque(profile)` : les
+recommandations s'en servent aussi, pour qu'un seul endroit appelle Steam et
+remplisse ces tables.
+
+## Recommandations
+
+`GET /api/recommendations/?limit=10` (limit plafonné à 50)
+
+```json
+{
+  "origine": "modele",
+  "modele_disponible": true,
+  "modele_erreur": null,
+  "jeux_possedes": 101,
+  "recommendations": [ { "appid": 1145360, "nom": "Hades", "tags": "...", "image": "..." } ]
+}
+```
+
+Le champ `origine` vaut `modele` ou `populaires`. Un **repli** sur les jeux les
+mieux notés se déclenche dans trois cas : joueur sans jeux, historique
+inexploitable par le modèle, ou modèle indisponible. Le front n'a donc jamais
+de liste vide à gérer.
+
+`modele_erreur` dit pourquoi le modèle n'a pas répondu — à regarder en premier
+si `origine` reste bloqué sur `populaires`.
 
 ---
 
@@ -194,11 +233,65 @@ repassera. Un **échec** (réseau, quota) ne marque rien en base, donc le joueur
 est automatiquement réessayé au lancement suivant. Un profil **privé**, lui,
 est marqué définitivement et n'est plus jamais redemandé.
 
+---
+
+# Le modèle de recommandation
+
+Le modèle est un **Two-Tower PyTorch** avec index FAISS, développé à part dans
+`backend/models_recommandation/` (voir son propre README). Django ne l'appelle
+qu'à travers une seule fonction :
+
+```python
+get_recommendations(owned_appids=[...], playtimes={appid: minutes}, top_k=10)
+    -> [appid, appid, ...]
+```
+
+Il renvoie une **liste d'appid triée par pertinence**. La vue les joint ensuite
+à la table `jeux` pour renvoyer nom, image, tags et prix au front.
+
+## Deux pièges d'intégration
+
+**Le chemin d'import.** `models_recommandation/` n'est pas un package (pas
+d'`__init__.py`) et `recommend.py` fait `from two_tower import ...`, un import
+à plat. `views.py` ajoute donc le **dossier lui-même** au `sys.path`, pas
+seulement `backend/`. Sans ça, l'import échoue.
+
+**L'ordre du modèle.** `filter(appid__in=[...])` ne garantit aucun ordre : sans
+reclassement en Python, le 1er choix du modèle pourrait ressortir en 10ᵉ
+position. C'est le rôle de `dansLOrdreDuModele()`.
+
+## Ce qu'il faut pour que le modèle réponde
+
+Les dépendances sont dans `requirements.txt` (`torch`, `faiss-cpu`, `pandas`),
+mais **les fichiers entraînés ne sont pas versionnés** :
+
+```
+backend/models_recommandation/data/export/
+    item_features.npy
+    item_appid_index.csv
+    model.pt
+    item_index.faiss
+```
+
+Sans eux, `modele_erreur` affiche un `FileNotFoundError` et l'API bascule sur
+les jeux populaires. Ils se produisent avec `export_for_serving.py`, après
+entraînement.
+
+Remplacer le modèle par une version améliorée ne demande **aucune modification
+côté Django** : seuls ces fichiers et `recommend.py` changent.
+
+---
+
 ## Structure
 
 ```
 MagGames/
-├── backend/            Django : config/ et steam/ (connexion OpenID)
+├── backend/
+│   ├── config/                 settings.py (2 bases), urls.py
+│   ├── steam/                  connexion OpenID, SteamProfile
+│   ├── library/                bibliothèque du joueur (Game, OwnedGame)
+│   ├── recommendation/         endpoint de recommandation (Jeu, managed=False)
+│   └── models_recommandation/  le modèle Two-Tower (équipe modèle)
 ├── frontend/           React + Vite + TypeScript
 ├── scripts/
 │   ├── steam_api.py            appels HTTP, limiteur de cadence, gestion des 429
@@ -207,17 +300,39 @@ MagGames/
 │   ├── importe_catalogue.py    2. remplit la table jeux
 │   ├── cherche_ids.py          3. trouve des SteamID
 │   ├── verifie_ids.py          4. trie les profils publics
-│   └── recolte_jeux.py         5. récupère les bibliothèques
+│   ├── recolte_jeux.py         5. récupère les bibliothèques
+│   ├── importe_bibliotheques.py   import d'un CSV collecté ailleurs
+│   └── exporte_csv.py             export des tables pour partage
 ├── data/               maggames.db (non versionné)
 ├── requirements.txt
 └── .env                clé d'API (non versionné)
 ```
+
+## Les deux bases
+
+Django est configuré avec **deux bases** (`settings.py`) :
+
+| alias | fichier | contenu |
+|---|---|---|
+| `default` | `backend/db.sqlite3` | sessions, profils Steam, `Game` / `OwnedGame` |
+| `donnees` | `data/maggames.db` | le catalogue collecté : 145 000 jeux |
+
+Le modèle `recommendation.Jeu` est en **`managed = False`** et pointe sur la
+table `jeux` de la seconde : Django la lit mais ne la crée ni ne la migre.
+Toutes ses requêtes doivent passer par `.using('donnees')`.
+
+Pourquoi deux bases plutôt qu'une : `library.Game` ne contient que le nom et
+l'image, et ne se remplit qu'au fil des visites. Or le modèle peut recommander
+n'importe lequel des 145 000 jeux, et le front a besoin de la description, des
+tags et du prix. Recopier le catalogue dans la base Django aurait dupliqué
+plusieurs centaines de Mo pour rien.
 
 ## Avancement
 
 - [x] Connexion Steam (OpenID)
 - [x] Catalogue des jeux avec tags et descriptions
 - [x] Collecte des bibliothèques de joueurs
-- [ ] Endpoint bibliothèque côté Django
+- [x] Endpoint bibliothèque côté Django
+- [x] Endpoint de recommandation (avec repli sur les jeux populaires)
+- [ ] Fichiers entraînés du modèle (`data/export/`)
 - [ ] Affichage côté React
-- [ ] Moteur de recommandation
