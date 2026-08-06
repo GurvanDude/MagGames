@@ -5,7 +5,9 @@
 __pycache__/
 *.py[cod]
 
-# Django
+# Donnees collectees (volumineuses, se regenerent avec les scripts)
+data/
+.db
 db.sqlite3
 staticfiles/
 
