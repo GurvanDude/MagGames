@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 import requests
 from django.conf import settings
 from django.shortcuts import redirect
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -105,3 +106,10 @@ def currentProfile(request):
         "personaName": profile.personaName,
         "avatar": profile.avatar,
     })
+
+
+@csrf_exempt
+@api_view(['POST'])
+def steamLogout(request):
+    request.session.pop('steamid', None)
+    return Response({"detail": "Compte Steam deconnecte"})
