@@ -56,6 +56,7 @@ INSTALLED_APPS = [
 
     "steam.apps.SteamConfig",
     "library.apps.LibraryConfig",
+    "recommendation.apps.RecommendationConfig",
     "rest_framework",
     "django_filters",
     "corsheaders",
@@ -105,7 +106,16 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
-    }
+    },
+    # La base collectee par scripts/ : 145 000 jeux et 15 millions de lignes
+    # de bibliotheques. On la branche en lecture seule plutot que de recopier
+    # le catalogue dans la base Django. Les modeles qui la lisent sont en
+    # managed=False, donc Django ne cherche jamais a la migrer.
+    "donnees": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR.parent / "data" / "maggames.db",
+        "OPTIONS": {"timeout": 60},
+    },
 }
 
 

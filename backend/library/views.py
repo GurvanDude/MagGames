@@ -16,23 +16,21 @@ from .models import Game, OwnedGame
 IMAGE_URL = 'https://cdn.cloudflare.steamstatic.com/steam/apps/{}/header.jpg'
 
 
-# Create your views here.
-@api_view(['GET'])
-def getLibrary(request):
+def synchroniserBibliotheque(profile):
+    """
+    Demande la bibliotheque du joueur a Steam et l'enregistre en base.
 
-    steamid = request.session.get('steamid')
+    Retourne True si ca a marche, False si le joueur cache ses jeux.
 
-    if steamid is None:
-        return Response({ "detail" : "Connecte-toi avec Steam" }, status=401)
-
-    profile = get_object_or_404(SteamProfile, steamid=steamid)
-
-    # On demande a Steam la liste des jeux du joueur
+    Sortie de getLibrary pour que la vue des recommandations puisse s'en
+    servir aussi : sans ca, les deux vues appelleraient Steam chacune de
+    leur cote et rempliraient les memes tables.
+    """
     url = 'https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/'
 
     data = requests.get(url, params={
         'key': settings.STEAM_API_KEY,
-        'steamid': steamid,
+        'steamid': profile.steamid,
         'include_appinfo': 1,
         'include_played_free_games': 1,
         'format': 'json',
@@ -40,11 +38,8 @@ def getLibrary(request):
 
     # Steam ne renvoie rien si le profil est prive
     if 'games' not in data['response']:
-        return Response({
-            "detail" : "Ta bibliotheque est privee. Passe 'Details du jeu' sur 'Public' dans les parametres Steam."
-        }, status=403)
+        return False
 
-    # On enregistre les jeux en base
     for jeu in data['response']['games']:
         game, created = Game.objects.update_or_create(
             appid=jeu['appid'],
@@ -59,6 +54,25 @@ def getLibrary(request):
             game=game,
             defaults={ 'playtime': jeu.get('playtime_forever', 0) }
         )
+
+    return True
+
+
+# Create your views here.
+@api_view(['GET'])
+def getLibrary(request):
+
+    steamid = request.session.get('steamid')
+
+    if steamid is None:
+        return Response({ "detail" : "Connecte-toi avec Steam" }, status=401)
+
+    profile = get_object_or_404(SteamProfile, steamid=steamid)
+
+    if not synchroniserBibliotheque(profile):
+        return Response({
+            "detail" : "Ta bibliotheque est privee. Passe 'Details du jeu' sur 'Public' dans les parametres Steam."
+        }, status=403)
 
     # Puis on les relit depuis la base, comme pour les produits du eshop
     filterset = OwnedGameFilter(request.GET, queryset=OwnedGame.objects.filter(profile=profile).order_by('-playtime'))
