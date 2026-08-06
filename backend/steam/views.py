@@ -4,6 +4,9 @@ from urllib.parse import urlencode
 import requests
 from django.conf import settings
 from django.shortcuts import redirect
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
 from .models import SteamProfile
 
@@ -36,7 +39,10 @@ def steamCallback(request):
     params = request.GET.dict()
     params['openid.mode'] = 'check_authentication'
 
-    response = requests.post(OPENID_URL, data=params)
+    try:
+        response = requests.post(OPENID_URL, data=params, timeout=10)
+    except requests.RequestException:
+        return redirect(settings.FRONTEND_URL + '/?erreur=connexion')
 
     if 'is_valid:true' not in response.text:
         return redirect(settings.FRONTEND_URL + '/?erreur=connexion')
@@ -48,10 +54,26 @@ def steamCallback(request):
 
     steamid = match.group(1)
 
+    if not settings.STEAM_API_KEY:
+        return redirect(settings.FRONTEND_URL + '/?erreur=cle-steam')
+
     # On recupere le pseudo et l'avatar du joueur
     url = 'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/'
-    data = requests.get(url, params={'key': settings.STEAM_API_KEY, 'steamids': steamid}).json()
-    players = data['response']['players']
+    try:
+        response = requests.get(
+            url,
+            params={'key': settings.STEAM_API_KEY, 'steamids': steamid},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError, KeyError):
+        return redirect(settings.FRONTEND_URL + '/?erreur=api-steam')
+
+    players = data.get('response', {}).get('players', [])
+
+    if len(players) == 0:
+        return redirect(settings.FRONTEND_URL + '/?erreur=profil-steam')
 
     SteamProfile.objects.update_or_create(
         steamid=steamid,
@@ -65,3 +87,29 @@ def steamCallback(request):
     request.session['steamid'] = steamid
 
     return redirect(settings.FRONTEND_URL + '/?connecte=1')
+
+
+@api_view(['GET'])
+def currentProfile(request):
+    steamid = request.session.get('steamid')
+
+    if steamid is None:
+        return Response({"detail": "Connecte-toi avec Steam"}, status=401)
+
+    try:
+        profile = SteamProfile.objects.get(steamid=steamid)
+    except SteamProfile.DoesNotExist:
+        return Response({"detail": "Profil Steam introuvable"}, status=404)
+
+    return Response({
+        "steamid": profile.steamid,
+        "personaName": profile.personaName,
+        "avatar": profile.avatar,
+    })
+
+
+@csrf_exempt
+@api_view(['POST'])
+def steamLogout(request):
+    request.session.pop('steamid', None)
+    return Response({"detail": "Compte Steam deconnecte"})
