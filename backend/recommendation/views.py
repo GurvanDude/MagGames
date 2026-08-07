@@ -3,6 +3,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 
@@ -42,8 +43,13 @@ def jeuxPossedes(profile):
     # marcher meme si c'est la premiere page qu'il ouvre.
     possedes = OwnedGame.objects.filter(profile=profile).select_related('game')
 
-    if not possedes.exists():
-        synchroniserBibliotheque(profile)
+    if profile.librarySyncedAt is None or not possedes.exists():
+        synchronisation = synchroniserBibliotheque(profile)
+
+        if synchronisation:
+            profile.librarySyncedAt = timezone.now()
+            profile.save(update_fields=['librarySyncedAt'])
+
         possedes = OwnedGame.objects.filter(profile=profile).select_related('game')
 
     return [(o.game.appid, o.playtime) for o in possedes]
@@ -92,7 +98,7 @@ def dansLOrdreDuModele(appids):
 @api_view(['GET'])
 def getRecommendations(request):
 
-    steamid = request.session.get('steamid')
+    steamid = request.GET.get('steamid') or request.session.get('steamid')
 
     if steamid is None:
         return Response({ "detail" : "Connecte-toi avec Steam" }, status=401)

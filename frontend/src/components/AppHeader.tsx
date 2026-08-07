@@ -11,6 +11,7 @@ export type HeaderProfile = {
 type AppHeaderProps = {
   activeView: AppView
   profile: HeaderProfile
+  isLookupMode?: boolean
   onNavigate: (view: AppView) => void
   onLogin: () => void
   onLogout: () => void
@@ -19,6 +20,7 @@ type AppHeaderProps = {
 export function AppHeader({
   activeView,
   profile,
+  isLookupMode = false,
   onNavigate,
   onLogin,
   onLogout,
@@ -113,7 +115,7 @@ export function AppHeader({
         {profile && isProfileMenuOpen && (
           <div className="profile-dropdown" role="menu">
             <button type="button" role="menuitem" onClick={handleLogout}>
-              Se deconnecter
+              {isLookupMode ? 'Quitter la consultation' : 'Se deconnecter'}
             </button>
           </div>
         )}
