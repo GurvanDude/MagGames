@@ -83,3 +83,37 @@ def get_recommendations(
             break
 
     return recommended
+
+
+def get_similar_recommendations(
+    appid: int,
+    excluded_appids: set[int] | None = None,
+    top_k: int = 4,
+) -> list[int]:
+    """Retourne les jeux les plus proches d'un jeu, hors bibliotheque."""
+    _, appid_to_row, row_to_appid, _, _, index = _load()
+    row = appid_to_row.get(int(appid))
+
+    if row is None or top_k <= 0:
+        return []
+
+    excluded = {int(value) for value in (excluded_appids or set())}
+    excluded.add(int(appid))
+    candidate_count = min(index.ntotal, top_k + len(excluded) + 1)
+    query = index.reconstruct(int(row)).reshape(1, -1).astype('float32')
+    _, candidate_rows = index.search(query, candidate_count)
+
+    similar = []
+    for candidate_row in candidate_rows[0]:
+        if candidate_row < 0:
+            continue
+
+        candidate_appid = int(row_to_appid[candidate_row])
+        if candidate_appid in excluded:
+            continue
+
+        similar.append(candidate_appid)
+        if len(similar) >= top_k:
+            break
+
+    return similar

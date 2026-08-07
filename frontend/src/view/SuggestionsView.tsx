@@ -16,7 +16,6 @@ type SuggestionsViewProps = {
   catalogColumns: number
   selectedRecommendationId: number | null
   onLogin: () => void
-  onNavigateHome: () => void
   onSelectRecommendation: (appid: number) => void
   onCloseRecommendation: () => void
 }
@@ -47,6 +46,7 @@ function RecommendationDetailPanel({
 
   return (
     <GameDetailFrame
+      appid={game.appid}
       titleId={`recommendation-detail-${game.appid}`}
       eyebrow="Fiche catalogue"
       title={game.nom ?? 'Jeu sans titre'}
@@ -87,7 +87,6 @@ export function SuggestionsView({
   catalogColumns,
   selectedRecommendationId,
   onLogin,
-  onNavigateHome,
   onSelectRecommendation,
   onCloseRecommendation,
 }: SuggestionsViewProps) {
@@ -111,9 +110,6 @@ export function SuggestionsView({
             Des jeux choisis a partir de ta bibliotheque Steam et du catalogue MagGames.
           </p>
         </div>
-        <button className="secondary-button" type="button" onClick={onNavigateHome}>
-          Retour accueil
-        </button>
       </header>
 
       {!profile && !isProfileLoading && !isLookupMode && (

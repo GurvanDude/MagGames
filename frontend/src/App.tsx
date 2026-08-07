@@ -2,6 +2,7 @@ import { AppHeader } from './components/AppHeader'
 import { HomeView } from './view/HomeView'
 import { LibraryView } from './view/LibraryView'
 import { SuggestionsView } from './view/SuggestionsView'
+import { RankingView } from './view/RankingView'
 import { useAppController } from './hooks/useAppController'
 import './App.css'
 
@@ -17,6 +18,7 @@ function App() {
       {controller.view === 'suggestions' && (
         <SuggestionsView {...controller.suggestions} />
       )}
+      {controller.view === 'ranking' && <RankingView {...controller.ranking} />}
     </main>
   )
 }

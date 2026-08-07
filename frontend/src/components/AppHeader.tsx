@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import logoUrl from '../assets/maggames-logo.png'
 
-export type AppView = 'home' | 'library' | 'suggestions'
+export type AppView = 'home' | 'library' | 'suggestions' | 'ranking'
 
 export type HeaderProfile = {
   personaName: string
@@ -30,7 +30,7 @@ export function AppHeader({
   function goTo(view: AppView) {
     setIsProfileMenuOpen(false)
 
-    if (view === 'home' || profile) {
+    if (view === 'home' || view === 'ranking' || profile) {
       onNavigate(view)
       return
     }
@@ -63,7 +63,6 @@ export function AppHeader({
         }}
       >
         <img className="mag-logo" src={logoUrl} alt="MagGames" />
-        <span className="brand-wordmark">Games</span>
       </a>
 
       <nav className="main-nav" aria-label="Navigation principale">
@@ -96,6 +95,16 @@ export function AppHeader({
           }}
         >
           Suggestions
+        </a>
+        <a
+          className={activeView === 'ranking' ? 'active' : ''}
+          href="/classement"
+          onClick={(event) => {
+            event.preventDefault()
+            goTo('ranking')
+          }}
+        >
+          Classement
         </a>
       </nav>
 

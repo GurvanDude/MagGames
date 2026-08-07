@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { AppView } from '../components/AppHeader'
 import { getGameDetails, getLibrary } from '../api/library'
-import { getRecommendations } from '../api/recommendation'
+import { getRecommendations, getRelatedRecommendations } from '../api/recommendation'
+import { getRanking } from '../api/rankings'
 import {
   getCurrentProfile,
   getSteamIdLookupUrl,
@@ -11,6 +12,7 @@ import {
 } from '../api/steam'
 import type { GameDetails, LibraryResponse } from '../model/library'
 import type { RecommendationGame, RecommendationResponse } from '../model/recommendation'
+import type { RankingResponse, RankingType } from '../model/ranking'
 import type { SteamProfile } from '../model/steam'
 import { getCatalogColumnCount } from '../utils/catalog'
 
@@ -31,11 +33,23 @@ function getViewFromPath(pathname: string): AppView {
     return 'suggestions'
   }
 
+  if (pathname === '/classement') {
+    return 'ranking'
+  }
+
   return 'home'
 }
 
 function getPathFromView(view: AppView) {
-  return view === 'home' ? '/home' : `/${view}`
+  if (view === 'home') {
+    return '/home'
+  }
+
+  if (view === 'ranking') {
+    return '/classement'
+  }
+
+  return `/${view}`
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -77,6 +91,12 @@ export function useAppController() {
   >({})
   const [isRelatedLoading, setIsRelatedLoading] = useState(false)
   const [relatedError, setRelatedError] = useState<string | null>(null)
+  const [rankings, setRankings] = useState<RankingResponse | null>(null)
+  const [isRankingsLoading, setIsRankingsLoading] = useState(false)
+  const [rankingError, setRankingError] = useState<string | null>(null)
+  const [rankingType, setRankingType] = useState<RankingType>('joues')
+  const [rankingGenre, setRankingGenre] = useState('tous')
+  const [selectedRankingId, setSelectedRankingId] = useState<number | null>(null)
   const [catalogColumns, setCatalogColumns] = useState(getCatalogColumnCount)
 
   function navigateTo(nextView: AppView, preserveLookup = true) {
@@ -119,6 +139,16 @@ export function useAppController() {
     setSelectedGameId((current) => (current === appid ? null : appid))
   }
 
+  function handleRankingTypeChange(nextType: RankingType) {
+    setRankingType(nextType)
+    setSelectedRankingId(null)
+  }
+
+  function handleRankingGenreChange(nextGenre: string) {
+    setRankingGenre(nextGenre)
+    setSelectedRankingId(null)
+  }
+
   async function handleLogout() {
     try {
       if (!isLookupMode) {
@@ -145,6 +175,12 @@ export function useAppController() {
       setRelatedRecommendations({})
       setIsRelatedLoading(false)
       setRelatedError(null)
+      setRankings(null)
+      setIsRankingsLoading(false)
+      setRankingError(null)
+      setRankingType('joues')
+      setRankingGenre('tous')
+      setSelectedRankingId(null)
       navigateTo('home', false)
     }
   }
@@ -316,8 +352,7 @@ export function useAppController() {
     if (
       !profile ||
       selectedGameId === null ||
-      relatedRecommendations[selectedGameId] ||
-      recommendations
+      relatedRecommendations[selectedGameId]
     ) {
       return
     }
@@ -331,8 +366,8 @@ export function useAppController() {
       setRelatedError(null)
 
       try {
-        const data = await getRecommendations(
-          4,
+        const data = await getRelatedRecommendations(
+          appid,
           lookupSteamId ?? undefined,
           controller.signal,
         )
@@ -360,7 +395,7 @@ export function useAppController() {
       isCurrentRequest = false
       controller.abort()
     }
-  }, [lookupSteamId, profile, recommendations, relatedRecommendations, selectedGameId])
+  }, [lookupSteamId, profile, relatedRecommendations, selectedGameId])
 
   useEffect(() => {
     if (!profile) {
@@ -418,7 +453,7 @@ export function useAppController() {
 
       try {
         const data = await getRecommendations(
-          12,
+          20,
           lookupSteamId ?? undefined,
           controller.signal,
         )
@@ -447,6 +482,46 @@ export function useAppController() {
       controller.abort()
     }
   }, [lookupSteamId, profile, recommendations, view])
+
+  useEffect(() => {
+    if (view !== 'ranking') {
+      return
+    }
+
+    const controller = new AbortController()
+    let isCurrentRequest = true
+
+    async function loadRanking() {
+      setIsRankingsLoading(true)
+      setRankingError(null)
+
+      try {
+        const data = await getRanking(rankingType, rankingGenre, controller.signal)
+
+        if (isCurrentRequest) {
+          setRankings(data)
+          setSelectedRankingId(null)
+        }
+      } catch (error) {
+        if (isCurrentRequest && !isAbortError(error)) {
+          setRankingError(
+            getErrorMessage(error, 'Impossible de charger le classement Steam.'),
+          )
+        }
+      } finally {
+        if (isCurrentRequest) {
+          setIsRankingsLoading(false)
+        }
+      }
+    }
+
+    void loadRanking()
+
+    return () => {
+      isCurrentRequest = false
+      controller.abort()
+    }
+  }, [rankingGenre, rankingType, view])
 
   return {
     view,
@@ -482,11 +557,9 @@ export function useAppController() {
       gameDetailsLoading,
       gameDetailsError,
       relatedRecommendations,
-      recommendationFallback: recommendations?.recommendations.slice(0, 4) ?? [],
-      isRelatedLoading: isRelatedLoading && !recommendations,
+      isRelatedLoading,
       relatedError,
       onLogin: loginWithSteam,
-      onNavigateHome: () => navigateTo('home'),
       onPageChange: goToLibraryPage,
       onSearchChange: handleLibrarySearchChange,
       onSelectGame: toggleGameDetails,
@@ -503,9 +576,21 @@ export function useAppController() {
       catalogColumns,
       selectedRecommendationId,
       onLogin: loginWithSteam,
-      onNavigateHome: () => navigateTo('home'),
       onSelectRecommendation: setSelectedRecommendationId,
       onCloseRecommendation: () => setSelectedRecommendationId(null),
+    },
+    ranking: {
+      rankings,
+      isRankingsLoading,
+      rankingError,
+      rankingType,
+      rankingGenre,
+      catalogColumns,
+      selectedRankingId,
+      onRankingTypeChange: handleRankingTypeChange,
+      onRankingGenreChange: handleRankingGenreChange,
+      onSelectRanking: setSelectedRankingId,
+      onCloseRanking: () => setSelectedRankingId(null),
     },
   }
 }

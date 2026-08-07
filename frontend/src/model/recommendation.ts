@@ -24,3 +24,8 @@ export type RecommendationResponse = {
   jeux_possedes: number
   recommendations: RecommendationGame[]
 }
+
+export type RelatedRecommendationResponse = {
+  appid: number
+  recommendations: RecommendationGame[]
+}

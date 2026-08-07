@@ -1,5 +1,6 @@
 import { GameCatalog, GameDetailFrame } from '../components/GameCatalog'
 import { StatChip } from '../components/StatChip'
+import { SteamStoreLink } from '../components/SteamStoreLink'
 import logoUrl from '../assets/maggames-logo.png'
 import type { GameDetails, LibraryResponse, OwnedGame } from '../model/library'
 import type { RecommendationGame } from '../model/recommendation'
@@ -22,11 +23,9 @@ type LibraryViewProps = {
   gameDetailsLoading: boolean
   gameDetailsError: string | null
   relatedRecommendations: Record<number, RecommendationGame[]>
-  recommendationFallback: RecommendationGame[]
   isRelatedLoading: boolean
   relatedError: string | null
   onLogin: () => void
-  onNavigateHome: () => void
   onPageChange: (page: number) => void
   onSearchChange: (value: string) => void
   onSelectGame: (appid: number) => void
@@ -73,6 +72,7 @@ function GameDetailPanel({
 
   return (
     <GameDetailFrame
+      appid={game.appid}
       titleId={`game-detail-${game.appid}`}
       eyebrow="Fiche Steam"
       title={details?.name ?? game.name}
@@ -88,14 +88,14 @@ function GameDetailPanel({
         ) : null
       }
       aside={
-        <aside className="game-suggestions-slot" aria-label="Suggestions du profil">
-          <p className="detail-eyebrow">Suggestions du profil</p>
+        <aside className="game-suggestions-slot" aria-label="Suggestions pour ce jeu">
+          <p className="detail-eyebrow">Jeux similaires</p>
           {isRelatedLoading && (
-            <p className="detail-status">Chargement des suggestions du profil...</p>
+            <p className="detail-status">Chargement des jeux similaires...</p>
           )}
           {relatedError && <p className="detail-status detail-error">{relatedError}</p>}
           {!isRelatedLoading && !relatedError && relatedGames.length === 0 && (
-            <p className="detail-status">Aucune suggestion du profil disponible.</p>
+            <p className="detail-status">Aucun jeu similaire disponible.</p>
           )}
           {relatedGames.length > 0 && (
             <div className="related-game-list">
@@ -107,7 +107,10 @@ function GameDetailPanel({
                     onError={handleCatalogImageError}
                   />
                   <div>
-                    <h3>{relatedGame.nom ?? 'Jeu sans titre'}</h3>
+                    <div className="related-game-heading">
+                      <h3>{relatedGame.nom ?? 'Jeu sans titre'}</h3>
+                      <SteamStoreLink appid={relatedGame.appid} compact />
+                    </div>
                     <p>{splitCatalogValues(relatedGame.genre).slice(0, 2).join(' / ') || 'Genre non renseigne'}</p>
                   </div>
                 </article>
@@ -136,11 +139,9 @@ export function LibraryView({
   gameDetailsLoading,
   gameDetailsError,
   relatedRecommendations,
-  recommendationFallback,
   isRelatedLoading,
   relatedError,
   onLogin,
-  onNavigateHome,
   onPageChange,
   onSearchChange,
   onSelectGame,
@@ -175,9 +176,6 @@ export function LibraryView({
             <StatChip value={`${library.page}/${library.total_pages}`} label="Page" />
           </div>
         )}
-        <button className="secondary-button" type="button" onClick={onNavigateHome}>
-          Retour accueil
-        </button>
       </header>
 
       {!profile && !isProfileLoading && (
@@ -228,9 +226,7 @@ export function LibraryView({
                 <GameDetailPanel
                   game={selectedGame}
                   details={gameDetails[selectedGame.appid]}
-                  relatedGames={
-                    relatedRecommendations[selectedGame.appid] ?? recommendationFallback
-                  }
+                  relatedGames={relatedRecommendations[selectedGame.appid] ?? []}
                   isRelatedLoading={isRelatedLoading}
                   relatedError={relatedError}
                   isLoading={gameDetailsLoading}
