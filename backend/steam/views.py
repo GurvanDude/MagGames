@@ -16,6 +16,94 @@ OPENID_URL = 'https://steamcommunity.com/openid/login'
 STEAMID_RE = re.compile(r'^https://steamcommunity\.com/openid/id/(\d{17})$')
 
 
+def getSteamPlayer(steamid):
+    if not settings.STEAM_API_KEY:
+        return None, 'cle-steam'
+
+    # On recupere le pseudo et l'avatar du joueur depuis son SteamID64.
+    url = 'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/'
+    try:
+        response = requests.get(
+            url,
+            params={'key': settings.STEAM_API_KEY, 'steamids': steamid},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError, KeyError):
+        return None, 'api-steam'
+
+    players = data.get('response', {}).get('players', [])
+
+    if len(players) == 0:
+        return None, 'profil-steam'
+
+    return players[0], None
+
+
+def saveSteamProfile(steamid, player):
+    return SteamProfile.objects.update_or_create(
+        steamid=steamid,
+        defaults={
+            'personaName': player['personaname'],
+            'avatar': player['avatarfull'],
+        }
+    )[0]
+
+
+def connectSteamProfile(request, steamid):
+    player, error = getSteamPlayer(steamid)
+
+    if error is not None:
+        return redirect(settings.FRONTEND_URL + f'/?erreur={error}')
+
+    saveSteamProfile(steamid, player)
+
+    # Le SteamID en session permet aux routes library et recommendations
+    # de retrouver le meme profil que pour OpenID.
+    request.session['steamid'] = steamid
+
+    return redirect(settings.FRONTEND_URL + '/?connecte=1')
+
+
+@api_view(['GET'])
+def lookupSteamProfile(request):
+    steamid = request.GET.get('steamid', '').strip()
+
+    if re.fullmatch(r'\d{17}', steamid) is None:
+        return Response({
+            'detail': 'Le SteamID64 doit contenir exactement 17 chiffres.'
+        }, status=400)
+
+    player, error = getSteamPlayer(steamid)
+
+    if error is not None:
+        status_codes = {
+            'cle-steam': 500,
+            'api-steam': 502,
+            'profil-steam': 404,
+        }
+        messages = {
+            'cle-steam': 'La cle API Steam manque dans le backend.',
+            'api-steam': 'Steam a refuse ou mal repondu pendant la recuperation du profil.',
+            'profil-steam': 'Aucun profil Steam ne correspond a cet ID.',
+        }
+        return Response(
+            {'detail': messages[error]},
+            status=status_codes[error],
+        )
+
+    profile = saveSteamProfile(steamid, player)
+    profile.librarySyncedAt = None
+    profile.save(update_fields=['librarySyncedAt'])
+
+    return Response({
+        'steamid': profile.steamid,
+        'personaName': profile.personaName,
+        'avatar': profile.avatar,
+    })
+
+
 # Create your views here.
 def steamLogin(request):
     # On envoie l'utilisateur sur la page de connexion de Steam.
@@ -54,39 +142,7 @@ def steamCallback(request):
 
     steamid = match.group(1)
 
-    if not settings.STEAM_API_KEY:
-        return redirect(settings.FRONTEND_URL + '/?erreur=cle-steam')
-
-    # On recupere le pseudo et l'avatar du joueur
-    url = 'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/'
-    try:
-        response = requests.get(
-            url,
-            params={'key': settings.STEAM_API_KEY, 'steamids': steamid},
-            timeout=10,
-        )
-        response.raise_for_status()
-        data = response.json()
-    except (requests.RequestException, ValueError, KeyError):
-        return redirect(settings.FRONTEND_URL + '/?erreur=api-steam')
-
-    players = data.get('response', {}).get('players', [])
-
-    if len(players) == 0:
-        return redirect(settings.FRONTEND_URL + '/?erreur=profil-steam')
-
-    SteamProfile.objects.update_or_create(
-        steamid=steamid,
-        defaults={
-            'personaName': players[0]['personaname'],
-            'avatar': players[0]['avatarfull'],
-        }
-    )
-
-    # On garde le SteamID dans la session : c'est ce qui dit "je suis connecte"
-    request.session['steamid'] = steamid
-
-    return redirect(settings.FRONTEND_URL + '/?connecte=1')
+    return connectSteamProfile(request, steamid)
 
 
 @api_view(['GET'])

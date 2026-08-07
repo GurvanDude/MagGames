@@ -13,6 +13,7 @@ from rest_framework.decorators import api_view
 from rest_framework.pagination import PageNumberPagination
 
 from steam.models import SteamProfile
+from recommendation.models import Jeu
 
 from .serializers import OwnedGameSerializer
 from .filters import OwnedGameFilter
@@ -28,6 +29,10 @@ IMAGE_URL = 'https://cdn.cloudflare.steamstatic.com/steam/apps/{}/header.jpg'
 LIBRARY_CACHE_DURATION = timedelta(minutes=5)
 DETAILS_URL = 'https://store.steampowered.com/api/appdetails'
 ACHIEVEMENTS_URL = 'https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/'
+
+
+def steamidPourRequete(request):
+    return request.GET.get('steamid') or request.session.get('steamid')
 
 
 def imageDuJeu(appid):
@@ -58,6 +63,39 @@ def imagesDesJeux(appids):
 
 def texteSteam(value):
     return unescape(re.sub(r'<[^>]+>', ' ', value or '')).strip()
+
+
+def valeursCatalogue(value):
+    return [
+        item.strip()
+        for item in re.split(r'[|,]', value or '')
+        if item.strip()
+    ]
+
+
+def detailsDepuisCatalogue(owned_game):
+    catalogue = Jeu.objects.using('donnees').filter(
+        appid=owned_game.game.appid
+    ).first()
+
+    if catalogue is None:
+        return None
+
+    return Response({
+        'appid': owned_game.game.appid,
+        'name': catalogue.nom or owned_game.game.name,
+        'image': catalogue.image or owned_game.game.image,
+        'description': texteSteam(catalogue.description),
+        'release_date': catalogue.date_sortie or None,
+        'genres': valeursCatalogue(catalogue.genre),
+        'developers': [catalogue.developpeur] if catalogue.developpeur else [],
+        'publishers': [catalogue.editeur] if catalogue.editeur else [],
+        'categories': valeursCatalogue(catalogue.categories),
+        'platforms': valeursCatalogue(catalogue.plateformes),
+        'website': catalogue.site_web or None,
+        'playtime': owned_game.playtime,
+        'achievements': {'obtained': None, 'total': None},
+    })
 
 
 def synchroniserBibliotheque(profile):
@@ -106,10 +144,15 @@ def synchroniserBibliotheque(profile):
             }
         )
 
+        playtime = jeu.get('playtime_forever')
+        defaults = {
+            'playtime': int(playtime),
+        } if playtime is not None else {}
+
         OwnedGame.objects.update_or_create(
             profile=profile,
             game=game,
-            defaults={ 'playtime': jeu.get('playtime_forever', 0) }
+            defaults=defaults,
         )
 
     return True
@@ -119,7 +162,7 @@ def synchroniserBibliotheque(profile):
 @api_view(['GET'])
 def getLibrary(request):
 
-    steamid = request.session.get('steamid')
+    steamid = steamidPourRequete(request)
 
     if steamid is None:
         return Response({ "detail" : "Connecte-toi avec Steam" }, status=401)
@@ -181,7 +224,7 @@ def getLibrary(request):
 
 @api_view(['GET'])
 def getGameDetails(request, appid):
-    steamid = request.session.get('steamid')
+    steamid = steamidPourRequete(request)
 
     if steamid is None:
         return Response({"detail": "Connecte-toi avec Steam"}, status=401)
@@ -202,11 +245,19 @@ def getGameDetails(request, appid):
         response.raise_for_status()
         entry = response.json().get(str(appid)) or {}
     except (requests.RequestException, ValueError, AttributeError):
+        fallback = detailsDepuisCatalogue(owned_game)
+        if fallback is not None:
+            return fallback
+
         return Response({
             "detail": "Impossible de recuperer les details du jeu depuis Steam."
         }, status=502)
 
     if not entry.get('success'):
+        fallback = detailsDepuisCatalogue(owned_game)
+        if fallback is not None:
+            return fallback
+
         return Response({
             "detail": "Steam ne fournit pas les details de ce jeu."
         }, status=404)
