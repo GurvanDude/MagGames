@@ -2,6 +2,7 @@ import type { ReactNode, SyntheticEvent } from 'react'
 import logoUrl from '../assets/maggames-logo.png'
 import type { CatalogItem, CatalogTone, DetailField } from '../model/catalog'
 import { handleCatalogImageError } from '../utils/catalog'
+import { SteamStoreLink } from './SteamStoreLink'
 
 export type { CatalogItem, CatalogTone, DetailField } from '../model/catalog'
 
@@ -42,6 +43,11 @@ function GameCard({
       aria-expanded={isSelected}
       onClick={onSelect}
     >
+      {item.rank !== undefined && (
+        <span className="game-card-rank" aria-label={`Rang ${item.rank}`}>
+          {String(item.rank).padStart(2, '0')}
+        </span>
+      )}
       <img
         src={item.image ?? logoUrl}
         alt=""
@@ -99,6 +105,7 @@ export function GameCatalog({
 }
 
 type GameDetailFrameProps = {
+  appid: number
   titleId: string
   eyebrow: string
   title: string
@@ -116,6 +123,7 @@ type GameDetailFrameProps = {
 }
 
 export function GameDetailFrame({
+  appid,
   titleId,
   eyebrow,
   title,
@@ -169,7 +177,10 @@ export function GameDetailFrame({
             </dl>
           )}
           {meta}
-          {children}
+          <div className="game-detail-actions">
+            <SteamStoreLink appid={appid} />
+            {children}
+          </div>
         </div>
       </div>
       {aside}

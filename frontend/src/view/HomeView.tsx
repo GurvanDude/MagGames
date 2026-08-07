@@ -27,39 +27,39 @@ function formatPlaytime(minutes: number) {
 function LibrarySymbol() {
   return (
     <svg className="module-symbol" viewBox="0 0 360 260" aria-hidden="true">
-      <g className="hud-grid-blue">
-        <circle cx="180" cy="130" r="82" />
-        <circle cx="180" cy="130" r="60" />
-        <path d="M180 34v44M180 182v44M86 130h42M232 130h42" />
-        <path d="M98 64h52l30 30h82M98 196h52l30-30h82" />
-        <path d="M76 77h45M76 183h45M239 77h45M239 183h45" />
+      <g className="library-hud">
+        <circle cx="180" cy="130" r="92" />
+        <circle cx="180" cy="130" r="76" />
+        <path d="M180 28v34M180 198v34M78 130h34M248 130h34" />
+        <path d="M78 70h58l28 28M282 70h-58l-28 28M78 190h58l28-28M282 190h-58l-28-28" />
+        <path d="M94 50h28M238 50h28M94 210h28M238 210h28" />
       </g>
-      <g className="archive-icon">
-        <path d="M132 104h96l13 16v53H119v-53Z" />
-        <path d="M132 104h96v28h-96Z" />
-        <path d="M146 145h68M146 159h46" />
-        <path d="M156 94h72l15 18" />
-        <path d="M144 84h72l14 16" />
+      <g className="library-rack">
+        <path d="M116 72h124l14 14v116H106V86Z" />
+        <path d="M122 104h116M122 138h116M122 172h116" />
+        <path d="M122 88h116" />
       </g>
-      <g className="library-slots">
-        <path d="M127 120h106M127 173h106" />
-        <path d="M160 132v41M202 132v41" />
+      <g className="library-books">
+        <path d="M130 88h14v16h-14ZM149 88h25v16h-25ZM180 88h14v16h-14ZM200 88h29v16h-29Z" />
+        <path d="M130 110h22v28h-22ZM158 110h14v28h-14ZM178 110h27v28h-27ZM211 110h18v28h-18Z" />
+        <path d="M130 144h14v28h-14ZM150 144h28v28h-28ZM184 144h16v28h-16ZM206 144h23v28h-23Z" />
+        <path d="M130 178h25v16h-25ZM161 178h14v16h-14ZM181 178h28v16h-28ZM215 178h14v16h-14Z" />
       </g>
-      <g className="node node-a">
-        <rect x="44" y="52" width="58" height="42" rx="6" />
-        <path d="M60 73h22M71 62v22M84 69h4M92 75h4" />
+      <g className="library-node node-a">
+        <rect x="38" y="52" width="58" height="42" rx="6" />
+        <path d="M53 66h20v19H53ZM58 62v23M78 70h7M78 77h7" />
       </g>
-      <g className="node node-b">
-        <rect x="258" y="52" width="58" height="42" rx="6" />
-        <path d="M274 73h22M285 62v22M298 69h4M306 75h4" />
+      <g className="library-node node-b">
+        <rect x="264" y="52" width="58" height="42" rx="6" />
+        <path d="M279 66h20v19H279ZM284 62v23M304 70h7M304 77h7" />
       </g>
-      <g className="node node-c">
-        <rect x="44" y="166" width="58" height="42" rx="6" />
-        <path d="M60 187h22M71 176v22M84 183h4M92 189h4" />
+      <g className="library-node node-c">
+        <rect x="38" y="166" width="58" height="42" rx="6" />
+        <path d="M53 180h20v19H53ZM58 176v23M78 184h7M78 191h7" />
       </g>
-      <g className="node node-d">
-        <rect x="258" y="166" width="58" height="42" rx="6" />
-        <path d="M274 187h22M285 176v22M298 183h4M306 189h4" />
+      <g className="library-node node-d">
+        <rect x="264" y="166" width="58" height="42" rx="6" />
+        <path d="M279 180h20v19H279ZM284 176v23M304 184h7M304 191h7" />
       </g>
     </svg>
   )
@@ -120,7 +120,7 @@ function ModuleCard({ tone, title, subtitle, action, symbol, onClick }: ModuleCa
       <span className="module-action">
         {action}
         <span className="module-arrow" aria-hidden="true">
-          <span />
+          <span>→</span>
         </span>
       </span>
     </button>

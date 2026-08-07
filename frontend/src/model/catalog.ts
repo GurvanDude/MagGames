@@ -8,6 +8,7 @@ export type CatalogItem = {
   image: string | null
   secondary: string
   tone: CatalogTone
+  rank?: number
 }
 
 export type DetailField = {
