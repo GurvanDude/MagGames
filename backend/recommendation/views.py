@@ -41,6 +41,11 @@ except Exception as erreur:
 TOP_K_DEFAUT = 10
 TOP_K_MAX = 50
 
+# Un meme jeu existe souvent sous plusieurs appid (Rainbow Six Siege en a 5,
+# Black Ops III 3). On demande donc plus de candidats que necessaire au
+# modele, pour en avoir encore assez apres le dedoublonnage.
+MARGE_DOUBLONS = 4
+
 SPY_URL = 'https://steamspy.com/api.php'
 CHARTS_URL = 'https://api.steampowered.com/ISteamChartsService/{}/v1/'
 CLASSEMENT_LIMIT_DEFAUT = 20
@@ -243,7 +248,10 @@ def getRelatedRecommendations(request, appid):
 
     profile = get_object_or_404(SteamProfile, steamid=steamid)
     possedes = jeuxPossedes(profile)
-    exclus = {owned_appid for owned_appid, _ in possedes}
+
+    # jeuxPossedes renvoie des triplets (appid, minutes, nom)
+    exclus = {owned_appid for owned_appid, _, _ in possedes}
+    nomsPossedes = {nom for _, _, nom in possedes if nom}
 
     if get_similar_recommendations is None:
         return Response({
@@ -251,17 +259,19 @@ def getRelatedRecommendations(request, appid):
         }, status=503)
 
     try:
+        # On demande plus de 4 : le dedoublonnage par nom en retire, un meme
+        # jeu existant sous plusieurs appid.
         appids = get_similar_recommendations(
             appid=appid,
             excluded_appids=exclus,
-            top_k=4,
+            top_k=4 * MARGE_DOUBLONS,
         )
     except Exception as erreur:
         return Response({
             "detail": f"Impossible de trouver des jeux similaires : {type(erreur).__name__}."
         }, status=502)
 
-    jeux = dansLOrdreDuModele(appids)
+    jeux = dansLOrdreDuModele(appids, nomsPossedes, 4)
     serializer = JeuSerializer(jeux, many=True)
 
     return Response({
